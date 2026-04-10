@@ -1,0 +1,20 @@
+# Circuit information for OSS topology
+# This CSV defines circuit connections between devices for TestTopology population
+#
+# Format: hostname,local_interface,local_platform,local_parent_interface,neighbor_hostname,neighbor_interface,neighbor_platform,neighbor_parent_interface,status,role
+#
+# Fields:
+#   hostname              - Local device hostname
+#   local_interface       - Local interface name (e.g., eth9/16/1)
+#   local_platform        - Local device platform (FBOSS, EOS, CISCO)
+#   local_parent_interface - Parent LAG interface or empty
+#   neighbor_hostname     - Neighbor device hostname (use "ixia" for IXIA connections)
+#   neighbor_interface    - Neighbor interface name (for IXIA: slot/port format like "1/1")
+#   neighbor_platform     - Neighbor device platform (use "ixia" for IXIA connections)
+#   neighbor_parent_interface - Neighbor parent LAG interface or empty
+#   status                - Circuit status: 3=IN_USE (active circuits)
+#   role                  - Circuit role (e.g., AGG_TO_CORE, IXIA)
+#
+# IXIA circuits (only define from device side):
+fsw002.p006.f01.qzd1,eth9/16/1,FBOSS,,ixia,1/1,ixia,,3,IXIA
+fsw002.p006.f01.qzd1,eth8/16/1,FBOSS,,ixia,10/2,ixia,,3,IXIA

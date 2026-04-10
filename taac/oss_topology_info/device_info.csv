@@ -1,0 +1,15 @@
+# Device information for OSS topology
+# This CSV maps device hostnames to their attributes for TestTopology population
+#
+# Format: hostname,ipv6_address,ipv4_address,mac_address,role,operating_system,hardware
+#
+# Fields:
+#   hostname         - Device hostname (required)
+#   ipv6_address     - IPv6 address for connectivity (required)
+#   ipv4_address     - IPv4 address (optional)
+#   mac_address      - MAC address (optional)
+#   role             - Device role: RSW, FSW, SSW, RDSW, FDSW, EDSW, BAG, etc. (required for health checks)
+#   operating_system - OS type: FBOSS, EOS, CISCO (required for driver selection)
+#   hardware         - Hardware platform: FUJI, MINIPACK2, MINIPACK3, ARISTA_7808, etc. (optional)
+#
+fsw002.p006.f01.qzd1,2401:db00:0116:317a:0000:0000:0000:0144,,,FSW,FBOSS,FUJI
