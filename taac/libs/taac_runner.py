@@ -790,7 +790,7 @@ class TaacRunner:
 
                     if _teardown_exc is not None:
                         raise _teardown_exc
-        except BaseException as e:
+        except Exception as e:
             _run_exc = e
             if self.npi_name and test_case_name:
                 if len(npi_iteration_outcomes) < _npi_iteration_count:
