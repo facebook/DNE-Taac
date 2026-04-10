@@ -1,0 +1,89 @@
+# .github/CODEOWNERS
+#
+# DNE-TAAC GitHub Repository — Code Owners
+# ==========================================
+#
+# This file defines the default reviewers for pull requests based on
+# which files are modified. GitHub will automatically request reviews
+# from the listed owners when a PR touches matching paths.
+#
+# Rules:
+#   - Later patterns take precedence over earlier ones.
+#   - Any ONE listed owner can approve unless branch protection
+#     requires multiple approvals.
+#
+# Team membership is managed via GitHub Teams
+#
+# Docs: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# ──────────────────────────────────────────────────────────────────────
+# Default — catches any file not matched by a more specific rule below.
+# ──────────────────────────────────────────────────────────────────────
+*                                       @facebook/dne-taac
+
+# ──────────────────────────────────────────────────────────────────────
+# Driver — core test driver framework that orchestrates test execution.
+# Path: driver/
+# ──────────────────────────────────────────────────────────────────────
+/driver/                                @facebook/dne-taac
+
+# ──────────────────────────────────────────────────────────────────────
+# Steps — test step definitions used to compose test workflows.
+# Path: steps/
+# ──────────────────────────────────────────────────────────────────────
+/steps/                                 @facebook/dne-taac
+
+# ──────────────────────────────────────────────────────────────────────
+# Tasks — test task definitions and task orchestration logic.
+# Path: tasks/
+# ──────────────────────────────────────────────────────────────────────
+/tasks/                                 @facebook/dne-taac
+
+# ──────────────────────────────────────────────────────────────────────
+# Libraries — shared libraries used across TAAC test components.
+# Path: libs/
+# ──────────────────────────────────────────────────────────────────────
+/libs/                                  @facebook/dne-taac
+
+# ──────────────────────────────────────────────────────────────────────
+# Utilities — helper functions, OSS utilities, and common tooling.
+# Path: utils/
+# ──────────────────────────────────────────────────────────────────────
+/utils/                                 @facebook/dne-taac
+
+# ──────────────────────────────────────────────────────────────────────
+# Health Checks — device and service health check utilities.
+# Path: health_checks/
+# ──────────────────────────────────────────────────────────────────────
+/health_checks/                         @facebook/dne-taac
+
+# ──────────────────────────────────────────────────────────────────────
+# Routing — routing-related test configurations and playbooks.
+# Path: routing/
+# ──────────────────────────────────────────────────────────────────────
+/routing/                               @facebook/dne-taac
+
+# ──────────────────────────────────────────────────────────────────────
+# Ixia — Ixia traffic generator integration and utilities.
+# Path: ixia/
+# ──────────────────────────────────────────────────────────────────────
+/ixia/                                  @facebook/dne-taac
+
+# ──────────────────────────────────────────────────────────────────────
+# Documentation — design docs, OSS guides, and reference materials.
+# Path: docs/
+# ──────────────────────────────────────────────────────────────────────
+/docs/                                  @facebook/dne-taac
+
+# ──────────────────────────────────────────────────────────────────────
+# Scripts — operational and development scripts.
+# Path: scripts/
+# ──────────────────────────────────────────────────────────────────────
+/scripts/                               @facebook/dne-taac
+
+# ──────────────────────────────────────────────────────────────────────
+# GitHub / Build — open-source build infrastructure, CI workflows,
+# and GitHub-specific packaging.
+# Path: github/
+# ──────────────────────────────────────────────────────────────────────
+/github/                                @facebook/dne-taac
