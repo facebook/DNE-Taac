@@ -1,0 +1,10 @@
+# Ixia vendor password for OSS topology
+# This CSV contains the Ixia chassis password for authentication
+# Format: password
+#
+# Instructions:
+# 1. Replace the placeholder below with your actual Ixia password
+# 2. Keep only ONE line with the password (no header row needed for the actual value)
+#
+# Example:
+# your_actual_ixia_password_here
