@@ -153,6 +153,7 @@ class TaacRunner:
             if isinstance(test_config, str)
             else test_config
         )
+        self._validate_no_test_config_level_checks()
         # results of the entire test run. test_results can be passed in as an empty list
         self.test_run_results = test_results if test_results is not None else []
         self.logger = logger or get_root_logger()
@@ -225,6 +226,29 @@ class TaacRunner:
         self.test_summary = TaacTestSummary(self.logger)
         self._current_playbook_section: t.Optional[SectionResult] = None
         self._last_completed_playbook_section: t.Optional[SectionResult] = None
+
+    def _validate_no_test_config_level_checks(self) -> None:
+        """Validate that deprecated TestConfig-level checks are not used.
+
+        prechecks, postchecks, snapshot_checks, and periodic_tasks should be
+        defined at the Playbook level, not at the TestConfig level.
+        """
+        deprecated_fields = {
+            "prechecks": self.test_config.prechecks,
+            "postchecks": self.test_config.postchecks,
+            "snapshot_checks": self.test_config.snapshot_checks,
+            "periodic_tasks": self.test_config.periodic_tasks,
+        }
+        violations = [
+            field_name for field_name, value in deprecated_fields.items() if value
+        ]
+        if violations:
+            raise ValueError(
+                f"TestConfig '{self.test_config.name}' defines {', '.join(violations)} "
+                f"at the TestConfig level. These fields are deprecated and must be "
+                f"defined at the Playbook level instead. Move them to each Playbook's "
+                f"corresponding field."
+            )
 
     def filter_custom_test_handlers_by_tags(
         self, tags: t.List[str]
@@ -345,13 +369,8 @@ class TaacRunner:
                 )
             for handler in self.custom_test_handlers:
                 await handler._async_test_setUp()
-            if not self.skip_periodic_tasks:
-                self.periodic_task_executor = PeriodicTaskExecutor(
-                    self.test_config.periodic_tasks or [],
-                    self.logger,
-                    self.ixia,
-                )
-                self.periodic_task_executor.create_periodic_tasks()
+            # Deprecated - periodic_tasks should be defined at playbook level
+            # TestConfig-level periodic tasks are no longer started here
 
         await self.run_startup_checks()
         log_phase_end(
@@ -441,7 +460,7 @@ class TaacRunner:
 
         prechecks = self.get_checks_to_run(
             playbook.prechecks,
-            self.test_config.prechecks,
+            None,  # Deprecated - prechecks should be defined at playbook level
             playbook.skip_test_config_prechecks,
             playbook.prechecks_to_skip,
             playbook.check_ids_to_skip,
@@ -449,7 +468,7 @@ class TaacRunner:
         )
         postchecks = self.get_checks_to_run(
             playbook.postchecks,
-            self.test_config.postchecks,
+            None,  # Deprecated - postchecks should be defined at playbook level
             playbook.skip_test_config_postchecks,
             playbook.postchecks_to_skip,
             playbook.check_ids_to_skip,
@@ -651,14 +670,10 @@ class TaacRunner:
                 )
                 # results of a single playbook run
                 test_case_results = []
+                # Deprecated - snapshot_checks should be defined at playbook level
                 snapshot_checks = [
                     snapshot_check
-                    for snapshot_check in (
-                        playbook.snapshot_checks or []
-                        if playbook.skip_test_config_snapshot_checks
-                        else (playbook.snapshot_checks or [])
-                        + (self.test_config.snapshot_checks or [])
-                    )
+                    for snapshot_check in (playbook.snapshot_checks or [])
                     if snapshot_check.name
                     not in (playbook.snapshot_checks_to_skip or [])
                 ]
