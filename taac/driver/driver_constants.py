@@ -105,7 +105,6 @@ ARISTA_CRITICAL_SAND_AGENTS = [
     "AsicResourceMgrSand-Priority",
     # Sand platform agents
     "SandL3Ni",
-    "AsicResourceMgrSand",
     "SandRoute",
     "SandAdj",
     "SandTunnelNi",
@@ -117,10 +116,11 @@ ARISTA_CRITICAL_SAND_AGENTS = [
     # Monitoring/LAG
     "SandDanz",
     "SandLag",
+    "Lag",
     # Other critical agents
     "SandTm",
     "SandLanz",
-    "snmp",
+    "Snmp",
     "XcvrAgent",
 ]
 
@@ -713,6 +713,20 @@ class ModuleType(Enum):
     BMC = "BMC"
     ROUTEPROC = "RouteProcessor"
     FANTRAY = "FanTray"
+    SUPERVISOR = "Supervisor"
+
+
+@dataclass
+class ModuleInfo:
+    """Structured info for a single hardware module from 'show module | json'."""
+
+    slot: str
+    module_type: ModuleType
+    model_name: str
+    status: str
+    port_count: int
+    serial_number: str
+    type_description: str
 
 
 # TODO: remove this
