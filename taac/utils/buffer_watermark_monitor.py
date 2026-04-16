@@ -3,30 +3,45 @@
 # pyre-unsafe
 
 """
-Real-time buffer watermark monitor for Kodiak3 (Chenab ASIC) FBOSS switches.
+Real-time buffer watermark and congestion drop monitor for Kodiak3 (Chenab ASIC)
+FBOSS switches.
 
-Polls fb303 buffer watermark counters at a configurable interval and produces
-live-updating matplotlib graphs grouped by:
+Polls fb303 counters at a configurable interval and produces live-updating
+matplotlib graphs grouped by:
   1. Device-level watermark (buffer_watermark_device)
   2. Global pool watermarks (global_shared, global_headroom)
-  3. Per-port per-queue unicast watermarks (buffer_watermark_ucast)
-  4. Per-port per-PG headroom/shared watermarks (buffer_watermark_pg_*)
+  3. CPU buffer watermarks — per-queue peak usage (buffer_watermark_cpu)
+  4. Per-port per-queue unicast watermarks (buffer_watermark_ucast)
+  5. Per-port per-PG headroom/shared watermarks (buffer_watermark_pg_*)
+  6. Per-port per-queue congestion drops (out_congestion_discards) — packets
+     dropped due to buffer overflow (tail drops), shown per queue and per port
+  7. Fabric/core watermarks (core_rci, dtl_queue, egress_core, etc.)
+
+Congestion drops are the primary signal for tail-drop events and appear as
+packets/60s (the sum over the last 60 seconds). These are complementary to the
+buffer watermark graphs: watermarks show how full buffers are, while congestion
+drops show when traffic is actually being discarded.
 
 Usage:
+    # Basic monitoring — shows all graphs including congestion drops:
     buck2 run fbcode//neteng/test_infra/dne/taac/utils:buffer_watermark_monitor -- \\
         --device rb001-01.qxt1 --interval 2
 
-    # Monitor specific ports only:
+    # Monitor specific ports only (reduces noise for targeted debugging):
     buck2 run fbcode//neteng/test_infra/dne/taac/utils:buffer_watermark_monitor -- \\
         --device rb001-01.qxt1 --interval 1 --ports eth1/63/1 eth1/63/5
 
-    # Save snapshots to a directory instead of live plot:
+    # Save graph snapshots to a directory (PNG images updated every 5 samples):
     buck2 run fbcode//neteng/test_infra/dne/taac/utils:buffer_watermark_monitor -- \\
         --device rb001-01.qxt1 --interval 2 --output-dir /tmp/buffer_graphs
 
-    # Export raw CSV data:
+    # Export raw CSV data (includes watermarks + congestion drop columns):
     buck2 run fbcode//neteng/test_infra/dne/taac/utils:buffer_watermark_monitor -- \\
         --device rb001-01.qxt1 --interval 2 --csv /tmp/buffer_data.csv
+
+    # Discover all available buffer/congestion counters on a device:
+    buck2 run fbcode//neteng/test_infra/dne/taac/utils:buffer_watermark_monitor -- \\
+        --device rb001-01.qxt1 --discover
 """
 
 import argparse
@@ -76,6 +91,11 @@ RE_CPU_QUEUE = re.compile(r"^buffer_watermark_cpu\.queue(\d+)\.p100\.60$")
 RE_SIMPLE_WM = re.compile(
     r"^buffer_watermark_(core_rci|dtl_queue|egress_core|fdr_fifo|fdr_rci)\.p100\.60$"
 )
+# Congestion drop counters (per-queue and per-port)
+RE_CONGESTION_QUEUE = re.compile(
+    r"^(.+?)\.queue(\d+)\.(.+?)\.out_congestion_discards\.sum\.60$"
+)
+RE_CONGESTION_PORT = re.compile(r"^(.+?)\.out_congestion_discards\.sum\.60$")
 
 
 class BufferWatermarkData:
@@ -111,6 +131,13 @@ class BufferWatermarkData:
         # Fabric/core watermarks: {counter_name -> [values]}
         self.fabric_wm: t.Dict[str, t.List[int]] = defaultdict(list)
 
+        # Per-port per-queue congestion drops: {port -> {queue_label -> [values]}}
+        self.congestion_drops: t.Dict[  # pyre-ignore[8]
+            str, t.Dict[str, t.List[int]]
+        ] = defaultdict(lambda: defaultdict(list))
+        # Per-port total congestion drops: {port -> [values]}
+        self.congestion_drops_port: t.Dict[str, t.List[int]] = defaultdict(list)
+
     def _trim(self, lst: t.List) -> None:
         """Keep only the last max_samples entries."""
         if len(lst) > self.max_samples:
@@ -137,6 +164,8 @@ class BufferWatermarkData:
         seen_pg_sh: t.Set[t.Tuple[str, str]] = set()
         seen_cpu: t.Set[str] = set()
         seen_fabric: t.Set[str] = set()
+        seen_cong_q: t.Set[t.Tuple[str, str]] = set()
+        seen_cong_p: t.Set[str] = set()
 
         for name, value in counters.items():
             m = RE_DEVICE_WM.match(name)
@@ -204,6 +233,30 @@ class BufferWatermarkData:
                 seen_fabric.add(label)
                 continue
 
+            # Per-queue congestion drops (check before per-port to avoid
+            # the per-port regex swallowing queue-level counters)
+            m = RE_CONGESTION_QUEUE.match(name)
+            if m:
+                port, queue_id, queue_name = m.group(1), m.group(2), m.group(3)
+                if port_filter and port not in port_filter:
+                    continue
+                label = f"q{queue_id}.{queue_name}"
+                self.congestion_drops[port][label].append(value)
+                self._trim(self.congestion_drops[port][label])
+                seen_cong_q.add((port, label))
+                continue
+
+            # Per-port total congestion drops
+            m = RE_CONGESTION_PORT.match(name)
+            if m:
+                port = m.group(1)
+                if port_filter and port not in port_filter:
+                    continue
+                self.congestion_drops_port[port].append(value)
+                self._trim(self.congestion_drops_port[port])
+                seen_cong_p.add(port)
+                continue
+
         self.device_wm.append(device_val)
         self._trim(self.device_wm)
         self.global_shared.append(global_shared_val)
@@ -233,6 +286,17 @@ class BufferWatermarkData:
                 self._trim(vals)
         for label, vals in self.fabric_wm.items():
             if label not in seen_fabric and len(vals) < len(self.timestamps):
+                vals.append(0)
+                self._trim(vals)
+        for port, queues in self.congestion_drops.items():
+            for label, vals in queues.items():
+                if (port, label) not in seen_cong_q and len(vals) < len(
+                    self.timestamps
+                ):
+                    vals.append(0)
+                    self._trim(vals)
+        for port, vals in self.congestion_drops_port.items():
+            if port not in seen_cong_p and len(vals) < len(self.timestamps):
                 vals.append(0)
                 self._trim(vals)
 
@@ -287,14 +351,16 @@ async def fetch_buffer_counters(  # noqa: C901
                     result = {
                         k: v
                         for k, v in all_counters.items()
-                        if k.startswith("buffer_watermark") and ".p100.60" in k
+                        if (k.startswith("buffer_watermark") and ".p100.60" in k)
+                        or k.endswith("out_congestion_discards.sum.60")
                     }
                     if not result:
-                        # Fallback: any buffer_watermark counter
+                        # Fallback: any buffer_watermark or congestion counter
                         result = {
                             k: v
                             for k, v in all_counters.items()
                             if k.startswith("buffer_watermark")
+                            or "out_congestion_discards" in k
                         }
             if _resolved_port is None:
                 print(
@@ -331,21 +397,34 @@ def build_plots(  # noqa: C901
     data: BufferWatermarkData,
     device_name: str,
 ) -> plt.Figure:
-    """Build a multi-panel figure from the collected data."""
+    """Build a multi-panel figure from the collected data.
+
+    Layout (2 columns):
+      Row 0:   Device watermark (col 0) | Global pool watermarks (col 1)
+      Row 1:   CPU buffer watermarks (col 0) | Fabric/core watermarks (col 1)
+      Per-port watermark rows:
+               Queue watermarks (col 0) | PG watermarks (col 1)
+      Per-port congestion drop rows (if data present):
+               Per-queue congestion drops (col 0) | Port-total drops (col 1)
+    """
     ports_with_ucast = sorted(data.ucast_wm.keys())
     ports_with_pg = sorted(
         set(list(data.pg_headroom.keys()) + list(data.pg_shared.keys()))
     )
-    all_ports = sorted(set(ports_with_ucast + ports_with_pg))
+    ports_with_congestion = sorted(
+        set(
+            list(data.congestion_drops.keys()) + list(data.congestion_drops_port.keys())
+        )
+    )
+    all_wm_ports = sorted(set(ports_with_ucast + ports_with_pg))
+    has_congestion = bool(data.congestion_drops) or bool(data.congestion_drops_port)
 
-    has_cpu = bool(data.cpu_queues)
-    has_fabric = bool(data.fabric_wm)
-
-    # Layout: 1 row for device+global, 1 for CPU+fabric, then 1 row per port
-    n_port_rows = len(all_ports)
-    n_extra_rows = 1 if (has_cpu or has_fabric) else 0
-    n_rows = 1 + n_extra_rows + n_port_rows
-    if n_rows == 1:
+    # Layout: row 0 (device+global) + row 1 (CPU+fabric, always shown)
+    #        + 1 row per watermark port + 1 row per congestion port
+    n_wm_port_rows = len(all_wm_ports)
+    n_cong_port_rows = len(ports_with_congestion) if has_congestion else 0
+    n_rows = 2 + n_wm_port_rows + n_cong_port_rows
+    if n_rows < 2:
         n_rows = 2  # at least 2 rows to avoid layout issues
 
     fig, axes = plt.subplots(
@@ -363,7 +442,7 @@ def build_plots(  # noqa: C901
 
     rel_times = _relative_times(data.timestamps)
 
-    # Row 0, Col 0: Device watermark
+    # ── Row 0, Col 0: Device watermark ──
     ax = axes[0][0]
     if data.device_wm:
         mb_vals = [_bytes_to_mb(v) for v in data.device_wm]
@@ -379,15 +458,16 @@ def build_plots(  # noqa: C901
                 alpha=0.5,
                 label=f"MMU={mmu_mb:.0f}MB",
             )
-        ax.legend(fontsize=8)
+        if ax.get_legend_handles_labels()[1]:
+            ax.legend(fontsize=8)
         if peak_mb > 0:
             ax.set_ylim(bottom=0, top=max(peak_mb * 1.1, 1))
-    ax.set_title("Device Watermark", fontsize=10)
+    ax.set_title("Device Watermark (peak buffer utilization)", fontsize=10)
     ax.set_ylabel("MB")
     ax.set_xlabel("Time (s)")
     ax.grid(True, alpha=0.3)
 
-    # Row 0, Col 1: Global shared + headroom
+    # ── Row 0, Col 1: Global shared + headroom ──
     ax = axes[0][1]
     if data.global_shared:
         ax.plot(
@@ -411,45 +491,41 @@ def build_plots(  # noqa: C901
     ax.legend(fontsize=8)
     ax.grid(True, alpha=0.3)
 
-    # Row 1 (optional): CPU queues + Fabric/core
-    port_row_offset = 1
-    if has_cpu or has_fabric:
-        port_row_offset = 2
+    # ── Row 1, Col 0: CPU buffer watermarks (always shown) ──
+    ax = axes[1][0]
+    for label in sorted(data.cpu_queues.keys()):
+        vals = data.cpu_queues[label]
+        ax.plot(
+            rel_times[: len(vals)],
+            [_bytes_to_mb(v) for v in vals],
+            linewidth=1,
+            label=label,
+        )
+    ax.set_title("CPU Buffer Watermarks (per-queue peak usage)", fontsize=10)
+    ax.set_ylabel("MB")
+    ax.set_xlabel("Time (s)")
+    ax.legend(fontsize=8, ncol=4)
+    ax.grid(True, alpha=0.3)
 
-        # Col 0: CPU queue watermarks
-        ax = axes[1][0]
-        for label in sorted(data.cpu_queues.keys()):
-            vals = data.cpu_queues[label]
-            ax.plot(
-                rel_times[: len(vals)],
-                [_bytes_to_mb(v) for v in vals],
-                linewidth=1,
-                label=label,
-            )
-        ax.set_title("CPU Queue Watermarks", fontsize=10)
-        ax.set_ylabel("MB")
-        ax.set_xlabel("Time (s)")
-        ax.legend(fontsize=8, ncol=4)
-        ax.grid(True, alpha=0.3)
+    # ── Row 1, Col 1: Fabric/core watermarks ──
+    ax = axes[1][1]
+    for label in sorted(data.fabric_wm.keys()):
+        vals = data.fabric_wm[label]
+        ax.plot(
+            rel_times[: len(vals)],
+            [_bytes_to_mb(v) for v in vals],
+            linewidth=1,
+            label=label,
+        )
+    ax.set_title("Fabric/Core Watermarks", fontsize=10)
+    ax.set_ylabel("MB")
+    ax.set_xlabel("Time (s)")
+    ax.legend(fontsize=8)
+    ax.grid(True, alpha=0.3)
 
-        # Col 1: Fabric/core watermarks
-        ax = axes[1][1]
-        for label in sorted(data.fabric_wm.keys()):
-            vals = data.fabric_wm[label]
-            ax.plot(
-                rel_times[: len(vals)],
-                [_bytes_to_mb(v) for v in vals],
-                linewidth=1,
-                label=label,
-            )
-        ax.set_title("Fabric/Core Watermarks", fontsize=10)
-        ax.set_ylabel("MB")
-        ax.set_xlabel("Time (s)")
-        ax.legend(fontsize=8)
-        ax.grid(True, alpha=0.3)
-
-    # Per-port rows
-    for i, port in enumerate(all_ports):
+    # ── Per-port watermark rows (queue + PG) ──
+    port_row_offset = 2
+    for i, port in enumerate(all_wm_ports):
         row = i + port_row_offset
 
         # Col 0: Unicast queue watermarks
@@ -465,7 +541,7 @@ def build_plots(  # noqa: C901
                     linewidth=1,
                     label=label,
                 )
-        ax.set_title(f"{port} — Queue Watermarks", fontsize=9)
+        ax.set_title(f"{port} — Queue Watermarks (peak buffer per queue)", fontsize=9)
         ax.set_ylabel("MB")
         ax.set_xlabel("Time (s)")
         ax.relim()
@@ -499,7 +575,61 @@ def build_plots(  # noqa: C901
         ax.set_title(f"{port} — PG Watermarks (hr=headroom, sh=shared)", fontsize=9)
         ax.set_ylabel("MB")
         ax.set_xlabel("Time (s)")
+        if ax.get_legend_handles_labels()[1]:
+            ax.legend(fontsize=7, ncol=4, loc="upper left")
+        ax.grid(True, alpha=0.3)
+
+    # ── Per-port congestion drop rows ──
+    cong_row_offset = port_row_offset + n_wm_port_rows
+    for i, port in enumerate(ports_with_congestion):
+        row = i + cong_row_offset
+
+        # Col 0: Per-queue congestion drops
+        ax = axes[row][0]
+        if port in data.congestion_drops:
+            for label in sorted(data.congestion_drops[port].keys()):
+                vals = data.congestion_drops[port][label]
+                n = min(len(rel_times), len(vals))
+                ax.plot(
+                    rel_times[:n],
+                    vals[:n],
+                    linewidth=1,
+                    label=label,
+                )
+        ax.set_title(
+            f"{port} — Per-Queue Congestion Drops (pkts/60s)",
+            fontsize=9,
+        )
+        ax.set_ylabel("Packets")
+        ax.set_xlabel("Time (s)")
+        ax.relim()
+        ax.autoscale_view()
+        ax.set_ylim(bottom=0)
         ax.legend(fontsize=7, ncol=4, loc="upper left")
+        ax.grid(True, alpha=0.3)
+
+        # Col 1: Port-level total congestion drops
+        ax = axes[row][1]
+        if port in data.congestion_drops_port:
+            vals = data.congestion_drops_port[port]
+            n = min(len(rel_times), len(vals))
+            ax.plot(
+                rel_times[:n],
+                vals[:n],
+                "r-",
+                linewidth=1.5,
+                label="total",
+            )
+        ax.set_title(
+            f"{port} — Port Total Congestion Drops (pkts/60s)",
+            fontsize=9,
+        )
+        ax.set_ylabel("Packets")
+        ax.set_xlabel("Time (s)")
+        ax.relim()
+        ax.autoscale_view()
+        ax.set_ylim(bottom=0)
+        ax.legend(fontsize=7, loc="upper left")
         ax.grid(True, alpha=0.3)
 
     fig.tight_layout(rect=[0, 0, 1, 0.96])
@@ -630,6 +760,29 @@ def print_summary(data: BufferWatermarkData, device_name: str) -> None:  # noqa:
     if fabric_vals:
         lines.append(f"  Fabric/Core: {', '.join(fabric_vals)}")
 
+    # Per-port per-queue congestion drops
+    cong_ports = sorted(
+        set(
+            list(data.congestion_drops.keys()) + list(data.congestion_drops_port.keys())
+        )
+    )
+    if cong_ports:
+        lines.append("  \033[33m-- Congestion Drops (pkts/60s) --\033[0m")
+    for port in cong_ports:
+        cong_vals = []
+        if port in data.congestion_drops:
+            for label in sorted(data.congestion_drops[port].keys()):
+                vals = data.congestion_drops[port][label]
+                if vals:
+                    cong_vals.append(f"{label}={vals[-1]}")
+        port_total = ""
+        if port in data.congestion_drops_port:
+            vals = data.congestion_drops_port[port]
+            if vals:
+                port_total = f" (port_total={vals[-1]})"
+        if cong_vals or port_total:
+            lines.append(f"  {port} drops: {', '.join(cong_vals)}{port_total}")
+
     lines.append("")
     print("\n".join(lines), flush=True)
 
@@ -646,11 +799,21 @@ def write_csv_row(
     row.append(data.global_shared[-1] if data.global_shared else 0)
     row.append(data.global_headroom[-1] if data.global_headroom else 0)
 
-    # Flatten per-port per-queue
+    # Flatten per-port per-queue watermarks
     for port in sorted(data.ucast_wm.keys()):
         for label in sorted(data.ucast_wm[port].keys()):
             vals = data.ucast_wm[port][label]
             row.append(vals[-1] if vals else 0)
+
+    # Flatten per-port per-queue congestion drops
+    for port in sorted(data.congestion_drops.keys()):
+        for label in sorted(data.congestion_drops[port].keys()):
+            vals = data.congestion_drops[port][label]
+            row.append(vals[-1] if vals else 0)
+    # Per-port total congestion drops
+    for port in sorted(data.congestion_drops_port.keys()):
+        vals = data.congestion_drops_port[port]
+        row.append(vals[-1] if vals else 0)
 
     writer.writerow(row)
 
@@ -719,6 +882,11 @@ async def monitor_loop(  # noqa: C901
                     for port in sorted(data.ucast_wm.keys()):
                         for label in sorted(data.ucast_wm[port].keys()):
                             header.append(f"{port}.{label}")
+                    for port in sorted(data.congestion_drops.keys()):
+                        for label in sorted(data.congestion_drops[port].keys()):
+                            header.append(f"{port}.{label}.cong_drops")
+                    for port in sorted(data.congestion_drops_port.keys()):
+                        header.append(f"{port}.cong_drops_total")
                     csv_writer.writerow(header)
                     csv_header_written = True
                 write_csv_row(csv_writer, ts, data)
@@ -743,7 +911,11 @@ async def monitor_loop(  # noqa: C901
                 fig.savefig(path, dpi=100)
                 plt.close(fig)
                 build_per_port_plots(data, device_name, output_dir)
-                print(f"  \033[2mGraphs saved to {output_dir}/\033[0m", flush=True)
+                print(
+                    f"  \033[2mGraphs saved to {output_dir}/\033[0m\n"
+                    f"  \033[2mTo view: run `code {output_dir}/buffer_watermark_latest.png` in VS Code terminal\033[0m",
+                    flush=True,
+                )
 
             # Live plot update
             if live and sample_num % 3 == 0:
@@ -761,12 +933,42 @@ async def monitor_loop(  # noqa: C901
 
 
 async def _discover_counters(hostname: str, port: int) -> None:
-    """Fetch and display all available buffer_watermark counters."""
-    print(f"\033[1mDiscovering buffer_watermark counters on {hostname}...\033[0m\n")
+    """Fetch and display all available buffer_watermark and congestion counters."""
+    print(
+        f"\033[1mDiscovering buffer_watermark and congestion counters on {hostname}...\033[0m\n"
+    )
     counters = await fetch_buffer_counters(hostname, port=port, discover=True)
+
+    # Also discover congestion drop counters
+    try:
+        ports_to_try = (
+            [port] if port != 0 else [FBOSS_MNPU_FB303_PORT, FBOSS_FB303_PORT]
+        )
+        for p in ports_to_try:
+            try:
+                async with get_direct_client(
+                    FacebookService,
+                    host=hostname,
+                    port=p,
+                    client_type=ClientType.THRIFT_ROCKET_CLIENT_TYPE,
+                ) as client:
+                    all_counters = await client.getCounters()
+                    cong_counters = {
+                        k: v
+                        for k, v in all_counters.items()
+                        if "out_congestion_discards" in k
+                    }
+                    counters.update(cong_counters)
+                    break
+            except Exception:
+                if p == ports_to_try[-1]:
+                    pass  # already handled below
+    except Exception:
+        pass  # congestion counters are optional
+
     if not counters:
         print(
-            f"\033[31mNo buffer_watermark counters found on {hostname}.\033[0m\n"
+            f"\033[31mNo buffer_watermark or congestion counters found on {hostname}.\033[0m\n"
             "Possible reasons:\n"
             "  - Wrong fb303 port (try --fb303-port 5909 or 5931)\n"
             "  - Device doesn't expose buffer watermark counters\n"
@@ -774,72 +976,135 @@ async def _discover_counters(hostname: str, port: int) -> None:
         )
         return
 
-    print(f"\033[32mFound {len(counters)} buffer_watermark counters:\033[0m\n")
-    for name in sorted(counters.keys()):
-        val = counters[name]
-        print(f"  {name} = {val} ({_bytes_to_mb(val):.3f} MB)")
+    wm_counters = {
+        k: v for k, v in counters.items() if k.startswith("buffer_watermark")
+    }
+    cong_counters = {
+        k: v for k, v in counters.items() if "out_congestion_discards" in k
+    }
+
+    if wm_counters:
+        print(f"\033[32mFound {len(wm_counters)} buffer_watermark counters:\033[0m\n")
+        for name in sorted(wm_counters.keys()):
+            val = wm_counters[name]
+            print(f"  {name} = {val} ({_bytes_to_mb(val):.3f} MB)")
+
+    if cong_counters:
+        print(
+            f"\n\033[32mFound {len(cong_counters)} congestion drop counters:\033[0m\n"
+        )
+        for name in sorted(cong_counters.keys()):
+            val = cong_counters[name]
+            print(f"  {name} = {val} pkts")
+
     print()
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Real-time buffer watermark monitor for Kodiak3 FBOSS switches",
+        description=(
+            "Real-time buffer watermark and congestion drop monitor for Kodiak3 "
+            "FBOSS switches. Polls fb303 counters and produces graphs for buffer "
+            "utilization (device, global, CPU, per-port queues, PGs) and congestion "
+            "drops (per-port per-queue tail drops). Use --discover to see which "
+            "counters are available on a device before monitoring."
+        ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
     parser.add_argument(
         "--device",
         required=True,
-        help="Device hostname (e.g. rb001-01.qxt1)",
+        help=(
+            "Device hostname to monitor (e.g. rb001-01.qxt1). The script connects "
+            "via fb303 Thrift to read buffer watermark and congestion counters."
+        ),
     )
     parser.add_argument(
         "--interval",
         type=float,
         default=2.0,
-        help="Polling interval in seconds (default: 2)",
+        help=(
+            "Polling interval in seconds (default: 2). Lower values give finer "
+            "granularity but increase load on the device. Values below 1s are "
+            "not recommended for production switches."
+        ),
     )
     parser.add_argument(
         "--ports",
         nargs="+",
         default=None,
-        help="Only monitor these ports (e.g. eth1/63/1 eth1/63/5). Default: all",
+        help=(
+            "Only monitor these specific ports (e.g. --ports eth1/63/1 eth1/63/5). "
+            "Filters both watermark and congestion drop counters. Useful for "
+            "reducing noise when debugging a specific link. Default: all ports."
+        ),
     )
     parser.add_argument(
         "--output-dir",
         default=None,
-        help="Directory to save graph snapshots (PNG). Default: none",
+        help=(
+            "Directory to save graph snapshots as PNG images. Graphs are updated "
+            "every 5 samples. Includes a combined overview graph and individual "
+            "per-port queue detail graphs. Default: none (console output only)."
+        ),
     )
     parser.add_argument(
         "--csv",
         default=None,
-        help="Path to write raw CSV data. Default: none",
+        help=(
+            "Path to write raw counter data as CSV. Each row is one sample with "
+            "columns for device/global watermarks, per-port queue watermarks, and "
+            "per-port per-queue congestion drops. Default: none."
+        ),
     )
     parser.add_argument(
         "--live",
         action="store_true",
-        help="Enable live graph updates (saved to /tmp/buffer_watermark_live.png)",
+        help=(
+            "Enable live graph updates (saved to /tmp/buffer_watermark_live.png "
+            "every 3 samples). Open this file in an image viewer that auto-refreshes "
+            "to see a near-real-time dashboard."
+        ),
     )
     parser.add_argument(
         "--max-samples",
         type=int,
         default=600,
-        help="Maximum number of samples to keep in memory (default: 600)",
+        help=(
+            "Maximum number of samples to keep in memory for graphing (default: 600). "
+            "At 2s interval, 600 samples = 20 minutes of history. Increase for "
+            "longer monitoring sessions."
+        ),
     )
     parser.add_argument(
         "--fb303-port",
         type=int,
         default=0,
-        help="fb303 port on the device (default: auto-detect, tries 5931 then 5909)",
+        help=(
+            "fb303 Thrift port on the device (default: auto-detect). Auto-detection "
+            "tries MNPU port 5931 first, then falls back to standard port 5909. "
+            "Set explicitly if the device uses a non-standard port."
+        ),
     )
     parser.add_argument(
         "--no-pg",
         action="store_true",
-        help="Suppress per-port priority group (PG) headroom/shared counters",
+        help=(
+            "Suppress per-port priority group (PG) headroom/shared watermark "
+            "counters from graphs and console output. Useful on devices with many "
+            "PGs where the PG data creates visual noise."
+        ),
     )
     parser.add_argument(
         "--discover",
         action="store_true",
-        help="Discovery mode: list all available buffer_watermark counters and exit",
+        help=(
+            "Discovery mode: connect to the device, list all available "
+            "buffer_watermark and congestion drop counters with their current "
+            "values, then exit. Useful for verifying which counters a device "
+            "exposes before starting a monitoring session."
+        ),
     )
 
     args = parser.parse_args()
@@ -877,7 +1142,10 @@ def main() -> None:
             path = os.path.join(final_path, "buffer_watermark_final.png")
             fig.savefig(path, dpi=150)
             plt.close(fig)
-            print(f"Final graph saved to {path}")
+            print(
+                f"Final graph saved to {path}\n"
+                f"To view: run `code {path}` in VS Code terminal"
+            )
 
         # Save final CSV summary
         if data.timestamps:
