@@ -1,15 +1,10 @@
 # (c) Meta Platforms, Inc. and affiliates. Confidential and proprietary.
 
 # pyre-strict
-import gzip
 import logging
-import os
 import re
-import socket
-import struct
 import time
 import typing as t
-from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import List, Optional
