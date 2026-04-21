@@ -245,3 +245,79 @@ async def async_get_current_cpu_and_memory(
             f"Failed to get CPU/memory for {process_name} on {hostname}: {str(e)}"
         )
         return {"cpu_percent": 0.0, "memory_mb": 0.0}
+
+
+async def async_deploy_cpu_stress(
+    hostname: str,
+    n: int = 5000,
+    duration_seconds: int = 3600,
+) -> bool:
+    """Deploy and launch a CPU stress script on the device via chunked base64."""
+    import base64
+
+    from taac.task_definitions import (
+        CPU_STRESS_REMOTE_PATH,
+        CPU_STRESS_SCRIPT,
+    )
+    from taac.utils.arista_utils import find_pid_in_output
+
+    b64 = base64.b64encode(CPU_STRESS_SCRIPT.encode()).decode()
+    driver = await async_get_device_driver(hostname)
+
+    try:
+        LOGGER.info("  Deploying CPU stress script...")
+        chunk_size = 120
+        chunks = [b64[i : i + chunk_size] for i in range(0, len(b64), chunk_size)]
+        for i, chunk in enumerate(chunks):
+            op = ">" if i == 0 else ">>"
+            await driver.async_run_cmd_on_shell(
+                f"bash echo '{chunk}' {op} /tmp/cpu_stress.b64"
+            )
+        await driver.async_run_cmd_on_shell(
+            f"bash base64 -d /tmp/cpu_stress.b64 > {CPU_STRESS_REMOTE_PATH}"
+        )
+        await driver.async_run_cmd_on_shell("bash rm -f /tmp/cpu_stress.b64")
+
+        LOGGER.info(f"  Launching: python3 cpu_stress.py {n} {duration_seconds}")
+        launch_cmd = (
+            f"bash sudo su\n"
+            f"nohup python3 {CPU_STRESS_REMOTE_PATH} {n} {duration_seconds}"
+            f" > /tmp/cpu_stress.log 2>&1 &\n"
+            f"exit"
+        )
+        await driver.async_run_cmd_on_shell(launch_cmd)
+        await asyncio.sleep(2)
+
+        check = await driver.async_run_cmd_on_shell("bash pgrep -f cpu_stress.py")
+        pid = find_pid_in_output(check)
+        if pid:
+            LOGGER.info(f"  CPU stress running (PID: {pid})")
+            return True
+        else:
+            LOGGER.warning(
+                f"  CPU stress not found after launch (pgrep output: {repr(check)})"
+            )
+            log_out = await driver.async_run_cmd_on_shell(
+                "bash cat /tmp/cpu_stress.log"
+            )
+            if log_out and log_out.strip():
+                LOGGER.warning(f"  cpu_stress.log: {log_out.strip()[:200]}")
+            return False
+    except Exception as e:
+        LOGGER.warning(f"  Failed to deploy CPU stress: {e}")
+        return False
+
+
+async def async_cleanup_cpu_stress(hostname: str) -> None:
+    """Kill the CPU stress script on the device."""
+    from taac.task_definitions import CPU_STRESS_REMOTE_PATH
+
+    try:
+        driver = await async_get_device_driver(hostname)
+        await driver.async_run_cmd_on_shell(
+            f"bash sudo su\npkill -f {CPU_STRESS_REMOTE_PATH} || true\nexit"
+        )
+        await driver.async_run_cmd_on_shell(f"bash rm -f {CPU_STRESS_REMOTE_PATH}")
+        LOGGER.info("  CPU stress cleaned up")
+    except Exception as e:
+        LOGGER.warning(f"  Failed to cleanup CPU stress: {e}")

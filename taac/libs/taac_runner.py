@@ -1741,6 +1741,9 @@ class TaacRunner:
 
     async def _async_trigger_triage_minion(self) -> None:
         """Trigger the DNE PIT CI Triage Agent via Confucius Thrift API."""
+        if TAAC_OSS:
+            self.logger.info("Triage minion not available in OSS mode, skipping")
+            return
         try:
             from urllib.parse import quote  # noqa: F811
 

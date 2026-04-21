@@ -19,6 +19,17 @@ AGENT_LOGS_PATH = "/var/log/agents"
 ARCHIVED_AGENT_LOGS_PATH = "/mnt/flash/archive/current/var/log/agents"
 
 
+def find_pid_in_output(output: str) -> t.Optional[str]:
+    """Extract the first PID from command output that may contain EOS prompt lines."""
+    if not output:
+        return None
+    for line in output.splitlines():
+        line = line.strip()
+        if line and line.split()[0].isdigit():
+            return line.split()[0]
+    return None
+
+
 async def get_daemon_pid(driver: t.Any, daemon_name: str) -> t.Optional[str]:
     """Get PID for daemon by checking all mapped process names."""
     mapping = ARISTA_BGP_PLUS_PLUS_DAEMON_MAPPINGS.get(
