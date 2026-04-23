@@ -2,22 +2,27 @@
 import os
 import typing as t
 
-from taac.ai_bb.dsf.dsf_drain_state_health_check import (
-    DsfDrainStateHealthCheck,
-)
-from taac.ai_bb.dsf.dsf_fabric_reachability_health_check import (
-    DsfFabricReachabilityHealthCheck,
-)
-from taac.ai_bb.dsf.dsf_fsdb_session_health_check import (
-    DsfFsdbSessionHealthCheck,
-)
-from taac.ai_bb.dsf.dsf_fsdb_subscriber_timestamp_health_check import (
-    DsfFsdbSubscriberTimestampHealthCheck,
-)
-from taac.ai_bb.dsf.dsf_pfc_health_check import DsfPfcHealthCheck
-from taac.ai_bb.dsf.dsf_traffic_rebalance_health_check import (
-    DsfTrafficRebalanceHealthCheck,
-)
+TAAC_OSS = os.environ.get("TAAC_OSS", "").lower() in ("1", "true", "yes")
+
+# DSF health checks live under the Meta-internal taac.ai_bb subpackage
+# which isn't shipped in the OSS slice.
+if not TAAC_OSS:
+    from taac.ai_bb.dsf.dsf_drain_state_health_check import (
+        DsfDrainStateHealthCheck,
+    )
+    from taac.ai_bb.dsf.dsf_fabric_reachability_health_check import (
+        DsfFabricReachabilityHealthCheck,
+    )
+    from taac.ai_bb.dsf.dsf_fsdb_session_health_check import (
+        DsfFsdbSessionHealthCheck,
+    )
+    from taac.ai_bb.dsf.dsf_fsdb_subscriber_timestamp_health_check import (
+        DsfFsdbSubscriberTimestampHealthCheck,
+    )
+    from taac.ai_bb.dsf.dsf_pfc_health_check import DsfPfcHealthCheck
+    from taac.ai_bb.dsf.dsf_traffic_rebalance_health_check import (
+        DsfTrafficRebalanceHealthCheck,
+    )
 from taac.health_checks.abstract_health_check import (
     AbstractDeviceHealthCheck,
     AbstractIxiaHealthCheck,
@@ -176,8 +181,6 @@ from taac.health_checks.topology_health_checks.ndp_health_check import (
 )
 from taac.health_check.health_check import types as hc_types
 
-TAAC_OSS = os.environ.get("TAAC_OSS", "").lower() in ("1", "true", "yes")
-
 HealthCheck = t.Union[
     t.Type[AbstractIxiaHealthCheck],
     t.Type[AbstractDeviceHealthCheck],
@@ -188,16 +191,12 @@ HealthCheck = t.Union[
 OSS_HEALTH_CHECKS: t.List[HealthCheck] = [
     IxiaPacketLossHealthCheck,
     DrainStateHealthCheck,
-    DsfDrainStateHealthCheck,
-    DsfFabricReachabilityHealthCheck,
-    DsfTrafficRebalanceHealthCheck,
-    DsfFsdbSessionHealthCheck,
-    DsfFsdbSubscriberTimestampHealthCheck,
+    # DSF-specific health checks (taac.ai_bb) are appended below only
+    # when not in OSS mode; the ai_bb subpackage isn't shipped in OSS.
     NdpHealthCheck,
     IxiaPortStatsHealthCheck,
     SystemctlActiveStateHealthCheck,
     WedgeAgentConfiguredHealthCheck,
-    DsfPfcHealthCheck,
     CoreDumpsHealthCheck,
     PortStateHealthCheck,
     LldpHealthCheck,
@@ -244,6 +243,15 @@ OSS_HEALTH_CHECKS: t.List[HealthCheck] = [
 ]
 
 if not TAAC_OSS:
+    OSS_HEALTH_CHECKS.extend([
+        DsfDrainStateHealthCheck,
+        DsfFabricReachabilityHealthCheck,
+        DsfTrafficRebalanceHealthCheck,
+        DsfFsdbSessionHealthCheck,
+        DsfFsdbSubscriberTimestampHealthCheck,
+        DsfPfcHealthCheck,
+    ])
+
     from taac.internal.health_checks.internal_health_checks import (
         INTERNAL_HEALTH_CHECKS,
     )
