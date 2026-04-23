@@ -8,7 +8,7 @@ from taac.health_checks.abstract_snapshot_health_check import (
     AbstractDeviceSnapshotHealthCheck,
 )
 from taac.health_checks.constants import Snapshot
-from neteng.test_infra.dne.taac.utils.common import async_everpaste_str, async_get_fburl
+from taac.utils.common import async_everpaste_str, async_get_fburl
 from taac.health_check.health_check import types as hc_types
 
 

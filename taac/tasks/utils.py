@@ -2,7 +2,7 @@
 import asyncio
 import typing as t
 
-from neteng.test_infra.dne.taac.ixia.taac_ixia import TaacIxia as Ixia
+from taac.ixia.taac_ixia import TaacIxia as Ixia
 from taac.tasks.registry import TASK_NAME_TO_CLASS
 from taac.utils.oss_taac_lib_utils import ConsoleFileLogger
 from taac.test_as_a_config import types as taac_types
