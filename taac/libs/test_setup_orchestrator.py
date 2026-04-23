@@ -5,7 +5,7 @@ import os
 import time
 import typing as t
 
-from neteng.test_infra.dne.taac.constants import FbossPackage, TestTopology
+from taac.constants import FbossPackage, TestTopology
 from taac.ixia.taac_ixia import TaacIxia
 from taac.libs.oss_test_bed_chunker import OssTestBedChunker
 from taac.libs.traffic_generator import TrafficGenerator

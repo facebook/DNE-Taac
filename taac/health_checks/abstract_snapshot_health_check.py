@@ -4,7 +4,7 @@
 import typing as t
 from abc import ABC
 
-from neteng.test_infra.dne.taac.constants import TestDevice, TestTopology
+from taac.constants import TestDevice, TestTopology
 from taac.health_checks.common_utils import (
     async_get_everpaste_fburl_if_needed,
 )
