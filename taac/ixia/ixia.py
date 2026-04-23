@@ -36,25 +36,48 @@ from taac.utils.oss_taac_lib_utils import (
     retryable,
     to_fb_uqdn,
 )
-from neteng.test_infra.ixia.ixnetwork_restpy.constants import (
-    ALLOWED_IPV4_ADVERTISEMENTS,
-    ALLOWED_IPV6_ADVERTISEMENTS,
-    API_SERVER_PASSWORD,
-    API_SERVER_USERNAME,
-    DESIRED_BGP_V4_PEER_NAME,
-    DESIRED_BGP_V4_PREFIX_NAME,
-    DESIRED_BGP_V6_PEER_NAME,
-    DESIRED_BGP_V6_PREFIX_NAME,
-    DESIRED_DEVICE_GROUP_NAME,
-    DESIRED_ETHERNET_NAME,
-    DESIRED_IPV4_NAME,
-    DESIRED_IPV6_NAME,
-    DESIRED_IPV6_PTP_NAME,
-    DESIRED_TOPOLOGY_NAME,
-    DESIRED_V4_BGP_PREFIX_NAME,
-    DESIRED_V6_BGP_PREFIX_NAME,
-    DESIRED_VPORT_NAME,
-)
+# The monorepo ships these constants at neteng.test_infra.ixia.ixnetwork_restpy.constants;
+# in OSS we vendor a copy alongside this module.
+if TAAC_OSS:
+    from taac.ixia.ixnetwork_restpy_constants import (
+        ALLOWED_IPV4_ADVERTISEMENTS,
+        ALLOWED_IPV6_ADVERTISEMENTS,
+        API_SERVER_PASSWORD,
+        API_SERVER_USERNAME,
+        DESIRED_BGP_V4_PEER_NAME,
+        DESIRED_BGP_V4_PREFIX_NAME,
+        DESIRED_BGP_V6_PEER_NAME,
+        DESIRED_BGP_V6_PREFIX_NAME,
+        DESIRED_DEVICE_GROUP_NAME,
+        DESIRED_ETHERNET_NAME,
+        DESIRED_IPV4_NAME,
+        DESIRED_IPV6_NAME,
+        DESIRED_IPV6_PTP_NAME,
+        DESIRED_TOPOLOGY_NAME,
+        DESIRED_V4_BGP_PREFIX_NAME,
+        DESIRED_V6_BGP_PREFIX_NAME,
+        DESIRED_VPORT_NAME,
+    )
+else:
+    from neteng.test_infra.ixia.ixnetwork_restpy.constants import (
+        ALLOWED_IPV4_ADVERTISEMENTS,
+        ALLOWED_IPV6_ADVERTISEMENTS,
+        API_SERVER_PASSWORD,
+        API_SERVER_USERNAME,
+        DESIRED_BGP_V4_PEER_NAME,
+        DESIRED_BGP_V4_PREFIX_NAME,
+        DESIRED_BGP_V6_PEER_NAME,
+        DESIRED_BGP_V6_PREFIX_NAME,
+        DESIRED_DEVICE_GROUP_NAME,
+        DESIRED_ETHERNET_NAME,
+        DESIRED_IPV4_NAME,
+        DESIRED_IPV6_NAME,
+        DESIRED_IPV6_PTP_NAME,
+        DESIRED_TOPOLOGY_NAME,
+        DESIRED_V4_BGP_PREFIX_NAME,
+        DESIRED_V6_BGP_PREFIX_NAME,
+        DESIRED_VPORT_NAME,
+    )
 from uhd_restpy.assistants.sessions.sessionassistant import (
     SessionAssistant as UhdSessionAssistant,
 )
