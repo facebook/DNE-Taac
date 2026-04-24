@@ -35,7 +35,17 @@ from typing import (
 # =============================================================================
 # Third-party (PyPI / OSS-compatible)
 # =============================================================================
-import bunch
+try:
+    import bunch
+except ImportError:
+    # bunch is abandoned (last updated 2011), use types.SimpleNamespace as replacement
+    from types import SimpleNamespace as Bunch
+
+    class BunchModule:
+        """Compatibility wrapper for abandoned bunch module"""
+        Bunch = Bunch
+
+    bunch = BunchModule()
 
 # =============================================================================
 # FBOSS thrift types & clients (already OSS'd)
