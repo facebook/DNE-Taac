@@ -1,8 +1,23 @@
 # pyre-unsafe
 import json
+import os
 import typing as t
 
-from taac.internal.drainer_utils import async_nds_drain
+TAAC_OSS = os.environ.get("TAAC_OSS", "").lower() in ("1", "true", "yes")
+
+if not TAAC_OSS:
+    from taac.internal.drainer_utils import async_nds_drain
+else:
+    # OSS stub - NDS drainer is Meta-internal
+    async def async_nds_drain(
+        hostname: str,
+        force_undrain: bool = False,
+        interfaces: t.Optional[t.List[str]] = None,
+    ) -> None:
+        raise NotImplementedError(
+            "NDS drainer is Meta-internal and not available in OSS mode"
+        )
+
 from taac.steps.step import Step
 from taac.utils.json_thrift_utils import (
     try_json_loads,
