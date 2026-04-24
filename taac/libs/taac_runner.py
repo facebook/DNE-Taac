@@ -93,11 +93,26 @@ from taac.utils.taac_test_summary import (
     SectionStatus,
     TaacTestSummary,
 )
-from taac.utp.npi_result_publisher import (
-    async_publish_npi_aggregated_result,
-    extract_scope_from_device,
-)
-from taac.utp.utp_test_catalog import UTP_TEST_CATALOG
+if not TAAC_OSS:
+    from taac.utp.npi_result_publisher import (
+        async_publish_npi_aggregated_result,
+        extract_scope_from_device,
+    )
+else:
+    # OSS stubs - NPI result publishing requires Meta-internal XDB
+    async def async_publish_npi_aggregated_result(*args, **kwargs) -> None:  # type: ignore
+        """OSS stub - NPI result publishing not available"""
+        pass
+
+    def extract_scope_from_device(test_device: t.Any) -> t.Dict[str, str]:  # type: ignore
+        """OSS stub - returns empty scope"""
+        return {"network_type": "", "device_role": "", "platform": ""}
+
+if not TAAC_OSS:
+    from taac.utp.utp_test_catalog import UTP_TEST_CATALOG
+else:
+    # OSS stub - UTP catalog lives under Meta-internal taac.utp
+    UTP_TEST_CATALOG: t.List[t.Any] = []
 from taac.health_check.health_check import types as hc_types
 from taac.test_as_a_config import types as taac_types
 from tabulate import tabulate
