@@ -53,7 +53,41 @@ except ImportError:
 import neteng.fboss.bgp_thrift.types as fboss_bgp_thrift_types
 import neteng.fboss.fsdb.types as fsdb_types
 import pexpect
-from fboss.fb_thrift_clients import FbossAgentClient, FbossAgentClientWrapper
+
+TAAC_OSS = os.environ.get("TAAC_OSS", "").lower() in ("1", "true", "yes")
+
+if not TAAC_OSS:
+    from fboss.fb_thrift_clients import FbossAgentClient, FbossAgentClientWrapper
+else:
+    # OSS stubs - fboss.fb_thrift_clients is Meta-internal
+    # Use FbossCtrl from OSS bindings as base
+    import typing as t_fboss
+
+    class FbossAgentClient:  # type: ignore
+        """OSS stub - using FbossCtrl from neteng.fboss.ctrl.clients"""
+        def __init__(self, hostname: str, port: int = 5909, timeout: int = 30):
+            from neteng.fboss.ctrl.clients import FbossCtrl
+            self.hostname = hostname
+            self.port = port
+            self.timeout = timeout
+            self._client = FbossCtrl
+
+    class FbossAgentClientWrapper:  # type: ignore
+        """OSS stub - context manager wrapper for FbossCtrl"""
+        def __init__(self, host: str, timeout: int = 30):
+            from neteng.fboss.ctrl.clients import FbossCtrl
+            self.host = host
+            self.timeout = timeout
+            self._client = None
+
+        def __enter__(self):
+            from neteng.fboss.ctrl.clients import FbossCtrl
+            # In OSS, return the client class - actual instantiation happens elsewhere
+            return FbossCtrl
+
+        def __exit__(self, *args):
+            pass
+
 from neteng.fboss.bgp_attr.types import TBgpAfi, TIpPrefix
 from neteng.fboss.bgp_thrift.clients import TBgpService
 from neteng.fboss.bgp_thrift.types import (
