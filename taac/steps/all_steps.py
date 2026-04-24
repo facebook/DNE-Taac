@@ -2,11 +2,15 @@
 import os
 import typing as t
 
-from taac.internal.steps.custom_step import CustomStep
-from taac.internal.steps.system_reboot_step import (
-    SystemRebootStep,
-)
-from taac.internal.steps.validation_step import ValidationStep
+TAAC_OSS = os.environ.get("TAAC_OSS", "").lower() in ("1", "true", "yes")
+
+if not TAAC_OSS:
+    from taac.internal.steps.custom_step import CustomStep
+    from taac.internal.steps.system_reboot_step import (
+        SystemRebootStep,
+    )
+    from taac.internal.steps.validation_step import ValidationStep
+
 from taac.steps.allocate_cgroup_slice_memory_step import (
     AllocateCgroupSliceMemory,
 )
@@ -48,8 +52,6 @@ from taac.steps.verify_port_operational_state import (
 from taac.steps.verify_port_speed_step import VerifyPortSpeedStep
 from taac.test_as_a_config import types as taac_types
 
-TAAC_OSS = os.environ.get("TAAC_OSS", "").lower() in ("1", "true", "yes")
-
 OSS_STEPS: t.List[t.Type[Step]] = [
     DummyStep,
     ServiceInterruptionStep,
@@ -58,9 +60,6 @@ OSS_STEPS: t.List[t.Type[Step]] = [
     InterfaceFlapStep,
     LongevityStep,
     RunSSHCmdStep,
-    SystemRebootStep,
-    ValidationStep,
-    CustomStep,
     RegisterPatcherStep,
     InvokeIxiaApiStep,
     AllocateCgroupSliceMemory,
@@ -75,6 +74,10 @@ OSS_STEPS: t.List[t.Type[Step]] = [
     VerifyFileModificationTimeStep,
     RegisterSpeedFlipPatcherStep,
 ]
+
+# Add internal steps when not in OSS mode
+if not TAAC_OSS:
+    OSS_STEPS.extend([SystemRebootStep, ValidationStep, CustomStep])
 
 if not TAAC_OSS:
     from taac.internal.steps.internal_steps import INTERNAL_STEPS
