@@ -1,9 +1,23 @@
 # pyre-unsafe
 import asyncio
+import os
 import typing as t
 
-from taac.internal.driver.arista_switch import AristaSwitch
-from taac.internal.driver.cisco_switch import CiscoSwitch
+TAAC_OSS = os.environ.get("TAAC_OSS", "").lower() in ("1", "true", "yes")
+
+if not TAAC_OSS:
+    from taac.internal.driver.arista_switch import AristaSwitch
+    from taac.internal.driver.cisco_switch import CiscoSwitch
+else:
+    # OSS stub - AristaSwitch / CiscoSwitch drivers are in internal/
+    class AristaSwitch:  # type: ignore
+        """Stub class for isinstance checks in OSS mode"""
+        pass
+
+    class CiscoSwitch:  # type: ignore
+        """Stub class for isinstance checks in OSS mode"""
+        pass
+
 from taac.steps.step import Step
 from taac.test_as_a_config import types as taac_types
 

@@ -7,7 +7,7 @@ import time
 import typing as t
 
 from taac.constants import PeriodicCheckResult
-from neteng.test_infra.dne.taac.ixia.taac_ixia import TaacIxia as Ixia
+from taac.ixia.taac_ixia import TaacIxia as Ixia
 from taac.libs.parameter_evaluator import ParameterEvaluator
 from taac.tasks.utils import get_task_obj
 from taac.utils.common import async_everpaste_file

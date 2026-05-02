@@ -10,6 +10,9 @@ import time
 import typing as t
 import uuid
 from datetime import datetime
+
+TAAC_OSS = os.environ.get("TAAC_OSS", "").lower() in ("1", "true", "yes")
+
 from urllib.parse import quote  # noqa: F401
 
 from taac.constants import (
@@ -37,14 +40,16 @@ from taac.health_checks.all_health_checks import (
     NAME_TO_HEALTH_CHECK,
     SNAPSHOT_HEALTH_CHECKS,
 )
-from taac.internal.steps.validation_step import ValidationStep
+# ValidationStep requires Meta-internal dependencies (neteng.netcastle, configerator, etc.)
+if not TAAC_OSS:
+    from taac.internal.steps.validation_step import ValidationStep
 from taac.ixia.taac_ixia import TaacIxia
 from taac.libs.parameter_evaluator import ParameterEvaluator
 from taac.libs.periodic_task_executor import PeriodicTaskExecutor
 from taac.libs.test_setup_orchestrator import (
     TestSetupOrchestrator,
 )
-from neteng.test_infra.dne.taac.steps.all_steps import NAME_TO_STEP, STEP_NAME_TO_INPUT
+from taac.steps.all_steps import NAME_TO_STEP, STEP_NAME_TO_INPUT
 from taac.steps.step import Step
 from taac.tasks.utils import run_task
 from taac.test_configs import get_test_config
@@ -88,11 +93,26 @@ from taac.utils.taac_test_summary import (
     SectionStatus,
     TaacTestSummary,
 )
-from taac.utp.npi_result_publisher import (
-    async_publish_npi_aggregated_result,
-    extract_scope_from_device,
-)
-from taac.utp.utp_test_catalog import UTP_TEST_CATALOG
+if not TAAC_OSS:
+    from taac.utp.npi_result_publisher import (
+        async_publish_npi_aggregated_result,
+        extract_scope_from_device,
+    )
+else:
+    # OSS stubs - NPI result publishing requires Meta-internal XDB
+    async def async_publish_npi_aggregated_result(*args, **kwargs) -> None:  # type: ignore
+        """OSS stub - NPI result publishing not available"""
+        pass
+
+    def extract_scope_from_device(test_device: t.Any) -> t.Dict[str, str]:  # type: ignore
+        """OSS stub - returns empty scope"""
+        return {"network_type": "", "device_role": "", "platform": ""}
+
+if not TAAC_OSS:
+    from taac.utp.utp_test_catalog import UTP_TEST_CATALOG
+else:
+    # OSS stub - UTP catalog lives under Meta-internal taac.utp
+    UTP_TEST_CATALOG: t.List[t.Any] = []
 from taac.health_check.health_check import types as hc_types
 from taac.test_as_a_config import types as taac_types
 from tabulate import tabulate
@@ -386,6 +406,12 @@ class TaacRunner:
         """
         startup_checks = self.test_config.startup_checks
         if not startup_checks:
+            return
+
+        if TAAC_OSS:
+            self.logger.warning(
+                "Startup checks skipped in OSS mode (requires ValidationStep with Meta-internal dependencies)"
+            )
             return
 
         log_section("STARTUP HEALTH CHECKS", logger=self.logger)

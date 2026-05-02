@@ -3,42 +3,43 @@ import os
 
 TAAC_OSS = os.environ.get("TAAC_OSS", "").lower() in ("1", "true", "yes")
 
+# Gate all internal tasks that have Meta-specific dependencies
 if not TAAC_OSS:
     from taac.internal.tasks.openr_route_action_task import (
         OpenRRouteActionTask,
     )
-from taac.internal.tasks.bgp_peer_group_config_task import (
-    GetEnforceFirstAsRejectsTask,
-    SetPeerGroupEnforceFirstAsTask,
-)
-from taac.internal.tasks.bgp_replace_peers_task import (
-    ReplaceBgpPeersTask,
-    RestoreBgpPeersTask,
-)
-from taac.internal.tasks.bgp_set_peer_groups_policy_task import (
-    BgpSetPeerGroupsPolicyTask,
-)
-from taac.internal.tasks.bgp_set_peers_policy_task import (
-    BgpSetPeersPolicyTask,
-)
-from taac.internal.tasks.bgp_set_route_filter_task import (
-    BgpSetRouteFilterTask,
-)
-from taac.internal.tasks.bgp_setting_config_task import (
-    DisableMedComparisonTask,
-    EnableMedComparisonTask,
-    SetBgpSettingConfigTask,
-)
-from taac.internal.tasks.bgp_verify_received_routes_task import (
-    BgpVerifyReceivedRoutesTask,
-)
-from taac.internal.tasks.bgp_weight_policy_task import (
-    AddBgpWeightPolicyTask,
-    RemoveBgpWeightPolicyTask,
-)
-from taac.internal.tasks.device_provisioning_task import (
-    DeviceProvisioningTask,
-)
+    from taac.internal.tasks.bgp_peer_group_config_task import (
+        GetEnforceFirstAsRejectsTask,
+        SetPeerGroupEnforceFirstAsTask,
+    )
+    from taac.internal.tasks.bgp_replace_peers_task import (
+        ReplaceBgpPeersTask,
+        RestoreBgpPeersTask,
+    )
+    from taac.internal.tasks.bgp_set_peer_groups_policy_task import (
+        BgpSetPeerGroupsPolicyTask,
+    )
+    from taac.internal.tasks.bgp_set_peers_policy_task import (
+        BgpSetPeersPolicyTask,
+    )
+    from taac.internal.tasks.bgp_set_route_filter_task import (
+        BgpSetRouteFilterTask,
+    )
+    from taac.internal.tasks.bgp_setting_config_task import (
+        DisableMedComparisonTask,
+        EnableMedComparisonTask,
+        SetBgpSettingConfigTask,
+    )
+    from taac.internal.tasks.bgp_verify_received_routes_task import (
+        BgpVerifyReceivedRoutesTask,
+    )
+    from taac.internal.tasks.bgp_weight_policy_task import (
+        AddBgpWeightPolicyTask,
+        RemoveBgpWeightPolicyTask,
+    )
+    from taac.internal.tasks.device_provisioning_task import (
+        DeviceProvisioningTask,
+    )
 from taac.tasks.all import (
     AddBgpPolicyMatchPrefixToPropagateRoutes,
     AddStressStaticRoutes,
@@ -100,7 +101,6 @@ TASK_REGISTRY = [
     BgpTcpdumpTask,
     CoopUnregisterPatchersTask,
     DeployEosImageTask,
-    DeviceProvisioningTask,
     InterfaceIpCleanupTask,
     InterfaceIpConfigurationTask,
     WaitForAgentConvergenceTask,
@@ -134,28 +134,31 @@ TASK_REGISTRY = [
     IxiaModifyBgpPrefixesCommunities,
     IxiaSetBgpPrefixesLocalPreference,
     IxiaPacketCaptureTask,
-    BgpSetRouteFilterTask,
-    BgpSetPeerGroupsPolicyTask,
-    BgpSetPeersPolicyTask,
-    BgpVerifyReceivedRoutesTask,
     NexthopGroupPoll,
     AristaCreateFileFromConfig,
-    AddBgpWeightPolicyTask,
-    RemoveBgpWeightPolicyTask,
-    ReplaceBgpPeersTask,
-    RestoreBgpPeersTask,
-    SetBgpSettingConfigTask,
-    EnableMedComparisonTask,
-    DisableMedComparisonTask,
-    SetPeerGroupEnforceFirstAsTask,
-    GetEnforceFirstAsRejectsTask,
     ConfigureBgpcppStartupTask,
     ConfigureEosParallelBgpPeers,
     VerifyBestPathChangesTask,
 ]
 
+# Add internal tasks only when not in OSS mode
 if not TAAC_OSS:
-    # pyre-fixme[6]: For 1st argument expected `Type[Union[AddBgpPolicyMatchPrefixToP...
-    TASK_REGISTRY.append(OpenRRouteActionTask)
+    TASK_REGISTRY.extend([
+        OpenRRouteActionTask,
+        DeviceProvisioningTask,
+        BgpSetRouteFilterTask,
+        BgpSetPeerGroupsPolicyTask,
+        BgpSetPeersPolicyTask,
+        BgpVerifyReceivedRoutesTask,
+        AddBgpWeightPolicyTask,
+        RemoveBgpWeightPolicyTask,
+        ReplaceBgpPeersTask,
+        RestoreBgpPeersTask,
+        SetBgpSettingConfigTask,
+        EnableMedComparisonTask,
+        DisableMedComparisonTask,
+        SetPeerGroupEnforceFirstAsTask,
+        GetEnforceFirstAsRejectsTask,
+    ])
 
 TASK_NAME_TO_CLASS = {task.NAME: task for task in TASK_REGISTRY}
