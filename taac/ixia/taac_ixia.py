@@ -13,7 +13,7 @@ from ixnetwork_restpy.assistants.statistics.statviewassistant import (
     StatViewAssistant as IxnStatViewAssistant,
 )
 from taac.ixia.ixia import Ixia
-from neteng.test_infra.dne.taac.utils.oss_taac_lib_utils import none_throws, retryable
+from taac.utils.oss_taac_lib_utils import none_throws, retryable
 from uhd_restpy.assistants.statistics.statviewassistant import (
     StatViewAssistant as UhdStatViewAssistant,
 )
