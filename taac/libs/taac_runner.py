@@ -44,7 +44,7 @@ from taac.libs.periodic_task_executor import PeriodicTaskExecutor
 from taac.libs.test_setup_orchestrator import (
     TestSetupOrchestrator,
 )
-from neteng.test_infra.dne.taac.steps.all_steps import NAME_TO_STEP, STEP_NAME_TO_INPUT
+from taac.steps.all_steps import NAME_TO_STEP, STEP_NAME_TO_INPUT
 from taac.steps.step import Step
 from taac.tasks.utils import run_task
 from taac.test_configs import get_test_config

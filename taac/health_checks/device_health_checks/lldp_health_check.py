@@ -7,7 +7,7 @@ from taac.constants import TestDevice
 from taac.health_checks.abstract_health_check import (
     AbstractDeviceHealthCheck,
 )
-from neteng.test_infra.dne.taac.utils.common import async_everpaste_str, async_get_fburl
+from taac.utils.common import async_everpaste_str, async_get_fburl
 from taac.utils.json_thrift_utils import try_json_to_thrift
 from taac.utils.oss_taac_lib_utils import (
     async_retryable,

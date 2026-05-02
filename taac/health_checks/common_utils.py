@@ -3,7 +3,7 @@ import sys
 import typing as t
 
 from taac.health_checks.constants import COMPARISON_OPERATORS
-from neteng.test_infra.dne.taac.utils.common import async_everpaste_str, async_get_fburl
+from taac.utils.common import async_everpaste_str, async_get_fburl
 from taac.health_check.health_check import types as hc_types
 
 
