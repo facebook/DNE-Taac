@@ -5,11 +5,11 @@ import traceback
 import typing as t
 from abc import ABC, abstractmethod
 
-from neteng.test_infra.dne.taac.constants import TestDevice, TestTopology
+from taac.constants import TestDevice, TestTopology
 from taac.health_checks.common_utils import (
     async_get_everpaste_fburl_if_needed,
 )
-from neteng.test_infra.dne.taac.ixia.taac_ixia import TaacIxia as Ixia
+from taac.ixia.taac_ixia import TaacIxia as Ixia
 from taac.utils.common import is_overridden
 from taac.utils.driver_factory import async_get_device_driver
 from taac.utils.oss_taac_lib_utils import ConsoleFileLogger

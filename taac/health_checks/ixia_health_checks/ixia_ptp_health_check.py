@@ -6,7 +6,7 @@ import typing as t
 from taac.health_checks.abstract_health_check import (
     AbstractIxiaHealthCheck,
 )
-from neteng.test_infra.dne.taac.ixia.taac_ixia import TaacIxia as Ixia
+from taac.ixia.taac_ixia import TaacIxia as Ixia
 from taac.health_check.health_check import types as hc_types
 
 PTP_DEFAULT_OFFSET_NS_THRESHOLD: int = 50

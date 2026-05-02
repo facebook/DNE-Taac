@@ -8,7 +8,7 @@ import typing as t
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 
-from neteng.test_infra.dne.taac.utils.common import async_everpaste_str, async_get_fburl
+from taac.utils.common import async_everpaste_str, async_get_fburl
 from taac.utils.taac_log_formatter import (
     format_duration,
     log_phase_end,
