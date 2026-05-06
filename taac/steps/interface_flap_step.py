@@ -22,14 +22,10 @@ class InterfaceFlapStep(Step[taac_types.BaseInput]):
         interfaces = params["interfaces"]
         device_name = params.get("device_name", self.device.name)
         self.driver = await async_get_device_driver(device_name)
-        test_interfaces: t.List[taac_types.TestInterface] = [
-            t.cast(
-                taac_types.TestInterface,
-                try_json_to_thrift(interface, taac_types.TestInterface),
-            )
+        interfaces = [
+            try_json_to_thrift(interface, taac_types.TestInterface)
             for interface in try_json_loads(interfaces)
         ]
-        interfaces = [iface.interface_name for iface in test_interfaces]
         delay = params.get("delay", 5)
         enable = params["enable"]
         sequential = params.get("sequential", False)
@@ -38,7 +34,7 @@ class InterfaceFlapStep(Step[taac_types.BaseInput]):
         )
         await self.async_flap_interfaces(
             device_name,
-            interfaces,
+            interfaces,  # pyre-ignore
             interface_flap_method,
             enable,
             sequential,
