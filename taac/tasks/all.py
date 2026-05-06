@@ -5,6 +5,7 @@ import copy
 import ipaddress
 import itertools
 import json
+import os
 import random
 import re
 import tempfile
@@ -13,11 +14,15 @@ import typing as t
 from collections import defaultdict
 from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network
 
-from configerator.client import ConfigeratorClient
-from libfb.py.asyncio.thrift import get_direct_client
+TAAC_OSS = os.environ.get("TAAC_OSS", "").lower() in ("1", "true", "yes")
+
+if not TAAC_OSS:
+    from configerator.client import ConfigeratorClient
+    from libfb.py.asyncio.thrift import get_direct_client
+    from neteng.fboss.lib.hostname_utils import get_role_from_hostname
+    from neteng.netcastle.utils.paramiko_utils import ParamikoClient
+
 from neteng.fboss.ctrl.types import PortInfoThrift
-from neteng.fboss.lib.hostname_utils import get_role_from_hostname
-from neteng.netcastle.utils.paramiko_utils import ParamikoClient
 from taac.constants import ARISTA_DAEMON_EXEC_SCRIPTS
 from taac.driver.driver_constants import (
     DNE_TEST_REGRESSION_NAME,
@@ -41,11 +46,19 @@ from taac.utils.oss_taac_lib_utils import (
     get_ipv6_for_host,
     none_throws,
 )
-from taac.utils.system_stress_utils import (
-    async_get_memory_current_pct,
-)
-from nettools.vipinjector.VipService.clients import VipService
-from nettools.vipinjector.VipService.types import TVipPreference, TVipRoute, TVipScope
+if not TAAC_OSS:
+    from taac.utils.system_stress_utils import (
+        async_get_memory_current_pct,
+    )
+    from nettools.vipinjector.VipService.clients import VipService
+    from nettools.vipinjector.VipService.types import TVipPreference, TVipRoute, TVipScope
+else:
+    # OSS mode: VipInjector not available, provide stubs for type annotations
+    TVipPreference = t.Any  # type: ignore
+    TVipRoute = t.Any  # type: ignore
+    TVipScope = t.Any  # type: ignore
+    VipService = t.Any  # type: ignore
+
 from taac.test_as_a_config import types as taac_types
 
 IPAddress = t.Union[IPv4Address, IPv6Address]
