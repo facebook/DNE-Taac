@@ -9,8 +9,8 @@ from taac.health_checks.abstract_health_check import (
     AbstractIxiaHealthCheck,
 )
 from taac.health_checks.common_utils import evaluate_comparison
-from neteng.test_infra.dne.taac.ixia.taac_ixia import TaacIxia as Ixia
-from neteng.test_infra.dne.taac.utils.common import async_everpaste_str, async_get_fburl
+from taac.ixia.taac_ixia import TaacIxia as Ixia
+from taac.utils.common import async_everpaste_str, async_get_fburl
 from taac.utils.json_thrift_utils import try_thrift_to_dict
 from taac.health_check.health_check import types as hc_types
 from tabulate import tabulate
