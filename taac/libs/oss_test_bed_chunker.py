@@ -17,7 +17,7 @@ Key differences from internal TestBedChunker:
 
 import typing as t
 
-from neteng.test_infra.dne.taac.constants import TestDevice, TestTopology
+from taac.constants import TestDevice, TestTopology
 from taac.oss_topology_info.circuit_info_loader import (
     get_circuits_for_hostname_oss,
 )
