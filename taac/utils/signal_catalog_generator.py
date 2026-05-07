@@ -188,7 +188,7 @@ def generate_steps_catalog() -> t.List[t.Dict[str, t.Any]]:
 def generate_step_helpers_catalog() -> t.List[t.Dict[str, t.Any]]:
     """Generate catalog entries for helper functions in step_definitions.py."""
     try:
-        from neteng.test_infra.dne.taac import step_definitions
+        from taac import step_definitions
     except ImportError:
         return []
 

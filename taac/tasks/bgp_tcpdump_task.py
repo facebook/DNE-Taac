@@ -5,7 +5,7 @@
 import typing as t
 from enum import Enum
 
-from neteng.test_infra.dne.taac.constants import ARISTA_DAEMON_EXEC_SCRIPTS, BGP_PORT
+from taac.constants import ARISTA_DAEMON_EXEC_SCRIPTS, BGP_PORT
 from taac.tasks.all import AristaDaemonControlTask
 from taac.tasks.base_task import BaseTask
 

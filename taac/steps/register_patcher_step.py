@@ -2,9 +2,24 @@
 
 # pyre-unsafe
 
+import os
 import typing as t
 
-from taac.internal.coop_utils import async_unregister_patcher
+TAAC_OSS = os.environ.get("TAAC_OSS", "").lower() in ("1", "true", "yes")
+
+if not TAAC_OSS:
+    from taac.internal.coop_utils import async_unregister_patcher
+else:
+    # OSS stub - COOP (Config Orchestrator) is Meta-internal
+    async def async_unregister_patcher(
+        hostname: str,
+        config_name: str,
+        patcher_name: str,
+    ) -> None:
+        raise NotImplementedError(
+            "COOP patcher unregistration is Meta-internal and not available in OSS mode"
+        )
+
 from taac.steps.step import Step
 from taac.test_as_a_config import types as taac_types
 
